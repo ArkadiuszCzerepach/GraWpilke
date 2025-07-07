@@ -11,7 +11,7 @@ const ball = {
     vx: 0,
     vy: 0,
     radius: 6,
-    owner: null // zawodnik który ma piłkę
+    owner: null
 };
 
 let score = { red: 0, blue: 0 };
@@ -56,7 +56,6 @@ function startGame() {
     ball.vy = 0;
     ball.owner = null;
 
-    // zawodnik rozpoczynający
     if (startingTeam === 'red') {
         ball.owner = redTeam.find(p => p.role === 'MID');
     } else {
@@ -72,7 +71,6 @@ function drawField() {
 
     ctx.strokeStyle = '#ecf0f1';
     ctx.lineWidth = 2;
-
     ctx.beginPath();
     ctx.moveTo(canvas.width / 2, 0);
     ctx.lineTo(canvas.width / 2, canvas.height);
@@ -135,6 +133,27 @@ function distance(a, b) {
     return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+function avoidOverlap(players) {
+    for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+            let p1 = players[i];
+            let p2 = players[j];
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 10 && dist > 0) {
+                let overlap = 10 - dist;
+                let ox = (dx / dist) * (overlap / 2);
+                let oy = (dy / dist) * (overlap / 2);
+                p1.x -= ox;
+                p1.y -= oy;
+                p2.x += ox;
+                p2.y += oy;
+            }
+        }
+    }
+}
+
 function updatePlayerAI(team, opponentTeam, opponentGoalX) {
     team.forEach(player => {
         if (ball.owner === player) {
@@ -142,28 +161,25 @@ function updatePlayerAI(team, opponentTeam, opponentGoalX) {
                 .filter(p => p !== player)
                 .sort((a, b) => distance(a, ball) - distance(b, ball))[0];
 
-            // jeśli jest blisko bramki - strzela
             if ((opponentGoalX < canvas.width / 2 && ball.x < 200) ||
                 (opponentGoalX > canvas.width / 2 && ball.x > canvas.width - 200)) {
                 let tx = opponentGoalX - ball.x;
                 let ty = (canvas.height / 2) - ball.y;
                 let tDist = Math.sqrt(tx * tx + ty * ty);
-                ball.vx = (tx / tDist) * 4;
-                ball.vy = (ty / tDist) * 4;
+                ball.vx = (tx / tDist) * 5;
+                ball.vy = (ty / tDist) * 5;
                 ball.owner = null;
             } else {
-                // podaje do najbliższego
                 let dx = nearestMate.x - ball.x;
                 let dy = nearestMate.y - ball.y;
                 let d = Math.sqrt(dx * dx + dy * dy);
-                ball.vx = (dx / d) * 2;
-                ball.vy = (dy / d) * 2;
+                ball.vx = (dx / d) * 4;
+                ball.vy = (dy / d) * 4;
                 ball.owner = null;
             }
         } else {
-            // biegnie do piłki jeśli w pobliżu
             let d = distance(player, ball);
-            if (d < 20 && ball.owner !== player) {
+            if (d < 15 && ball.owner !== player) {
                 ball.owner = player;
                 ball.vx = 0;
                 ball.vy = 0;
@@ -184,10 +200,9 @@ function updateBall() {
     if (!ball.owner) {
         ball.x += ball.vx;
         ball.y += ball.vy;
-        ball.vx *= 0.98;
-        ball.vy *= 0.98;
+        ball.vx *= 0.96;
+        ball.vy *= 0.96;
 
-        // ograniczenia
         if (ball.x < ball.radius) ball.x = ball.radius;
         if (ball.x > canvas.width - ball.radius) ball.x = canvas.width - ball.radius;
         if (ball.y < ball.radius) ball.y = ball.radius;
@@ -218,6 +233,7 @@ function gameLoop() {
     if (gameStarted) {
         updatePlayerAI(redTeam, blueTeam, canvas.width);
         updatePlayerAI(blueTeam, redTeam, 0);
+        avoidOverlap(redTeam.concat(blueTeam));
         updateBall();
     }
 
