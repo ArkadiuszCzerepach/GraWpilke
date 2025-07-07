@@ -1,7 +1,6 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const teamSize = 11;
 let redTeam = [];
 let blueTeam = [];
 
@@ -19,33 +18,19 @@ let startingTeam = Math.random() < 0.5 ? 'red' : 'blue';
 let gameStarted = false;
 
 function createTeams() {
-    redTeam = [];
-    blueTeam = [];
+    redTeam = [
+        { x: 150, y: 200, color: 'red', number: 2, role: 'DEF' },
+        { x: 150, y: 400, color: 'red', number: 3, role: 'DEF' },
+        { x: 300, y: 300, color: 'red', number: 6, role: 'MID' },
+        { x: 450, y: 300, color: 'red', number: 10, role: 'ATT' }
+    ];
 
-    redTeam.push({ x: 50, y: canvas.height / 2, color: 'red', number: 1, role: 'GK' });
-    let redDefY = [100, 200, 300, 400];
-    for (let i = 0; i < 4; i++)
-        redTeam.push({ x: 150, y: redDefY[i], color: 'red', number: i + 2, role: 'DEF' });
-
-    let redMidY = [80, 180, 320, 420];
-    for (let i = 0; i < 4; i++)
-        redTeam.push({ x: 300, y: redMidY[i], color: 'red', number: i + 6, role: 'MID' });
-
-    redTeam.push({ x: 450, y: 180, color: 'red', number: 10, role: 'ATT' });
-    redTeam.push({ x: 450, y: 320, color: 'red', number: 11, role: 'ATT' });
-
-    blueTeam.push({ x: canvas.width - 50, y: canvas.height / 2, color: 'blue', number: 1, role: 'GK' });
-    let blueDefY = [100, 200, 300, 400];
-    for (let i = 0; i < 4; i++)
-        blueTeam.push({ x: canvas.width - 150, y: blueDefY[i], color: 'blue', number: i + 2, role: 'DEF' });
-
-    let blueMidY = [130, 250, 370];
-    for (let i = 0; i < 3; i++)
-        blueTeam.push({ x: canvas.width - 300, y: blueMidY[i], color: 'blue', number: i + 6, role: 'MID' });
-
-    blueTeam.push({ x: canvas.width - 450, y: 100, color: 'blue', number: 9, role: 'ATT' });
-    blueTeam.push({ x: canvas.width - 450, y: 250, color: 'blue', number: 10, role: 'ATT' });
-    blueTeam.push({ x: canvas.width - 450, y: 400, color: 'blue', number: 11, role: 'ATT' });
+    blueTeam = [
+        { x: canvas.width - 150, y: 200, color: 'blue', number: 2, role: 'DEF' },
+        { x: canvas.width - 150, y: 400, color: 'blue', number: 3, role: 'DEF' },
+        { x: canvas.width - 300, y: 300, color: 'blue', number: 6, role: 'MID' },
+        { x: canvas.width - 450, y: 300, color: 'blue', number: 10, role: 'ATT' }
+    ];
 }
 
 function startGame() {
@@ -57,9 +42,9 @@ function startGame() {
     ball.owner = null;
 
     if (startingTeam === 'red') {
-        ball.owner = redTeam.find(p => p.role === 'MID');
+        ball.owner = redTeam[2]; // pomocnik
     } else {
-        ball.owner = blueTeam.find(p => p.role === 'MID');
+        ball.owner = blueTeam[2];
     }
     gameStarted = true;
 }
@@ -71,6 +56,7 @@ function drawField() {
 
     ctx.strokeStyle = '#ecf0f1';
     ctx.lineWidth = 2;
+
     ctx.beginPath();
     ctx.moveTo(canvas.width / 2, 0);
     ctx.lineTo(canvas.width / 2, canvas.height);
@@ -133,65 +119,52 @@ function distance(a, b) {
     return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-function avoidOverlap(players) {
-    for (let i = 0; i < players.length; i++) {
-        for (let j = i + 1; j < players.length; j++) {
-            let p1 = players[i];
-            let p2 = players[j];
-            let dx = p2.x - p1.x;
-            let dy = p2.y - p1.y;
-            let dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 10 && dist > 0) {
-                let overlap = 10 - dist;
-                let ox = (dx / dist) * (overlap / 2);
-                let oy = (dy / dist) * (overlap / 2);
-                p1.x -= ox;
-                p1.y -= oy;
-                p2.x += ox;
-                p2.y += oy;
-            }
-        }
-    }
-}
-
-function updatePlayerAI(team, opponentTeam, opponentGoalX) {
+function updatePlayerAI(team, opponentGoalX) {
     team.forEach(player => {
         if (ball.owner === player) {
-            let nearestMate = team
-                .filter(p => p !== player)
-                .sort((a, b) => distance(a, ball) - distance(b, ball))[0];
+            // szuka najbliższego kolegi w przód
+            let matesAhead = team.filter(p => p !== player && ((team[0].color === 'red') ? p.x > player.x : p.x < player.x));
+            let target = matesAhead.sort((a, b) => distance(a, player) - distance(b, player))[0];
 
-            if ((opponentGoalX < canvas.width / 2 && ball.x < 200) ||
-                (opponentGoalX > canvas.width / 2 && ball.x > canvas.width - 200)) {
+            if (!target) { // brak kolegi przed sobą, strzela
                 let tx = opponentGoalX - ball.x;
                 let ty = (canvas.height / 2) - ball.y;
                 let tDist = Math.sqrt(tx * tx + ty * ty);
-                ball.vx = (tx / tDist) * 5;
-                ball.vy = (ty / tDist) * 5;
+                ball.vx = (tx / tDist) * 4;
+                ball.vy = (ty / tDist) * 4;
                 ball.owner = null;
-            } else {
-                let dx = nearestMate.x - ball.x;
-                let dy = nearestMate.y - ball.y;
+            } else { // podaje
+                let dx = target.x - ball.x;
+                let dy = target.y - ball.y;
                 let d = Math.sqrt(dx * dx + dy * dy);
-                ball.vx = (dx / d) * 4;
-                ball.vy = (dy / d) * 4;
+                ball.vx = (dx / d) * 3;
+                ball.vy = (dy / d) * 3;
                 ball.owner = null;
             }
         } else {
-            let d = distance(player, ball);
-            if (d < 15 && ball.owner !== player) {
-                ball.owner = player;
-                ball.vx = 0;
-                ball.vy = 0;
-            } else {
-                let target = ball.owner ? ball.owner : ball;
-                let dx = target.x - player.x;
-                let dy = target.y - player.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-                let speed = (player.role === 'GK') ? 1 : 1.5;
-                player.x += (dx / dist) * speed;
-                player.y += (dy / dist) * speed;
+            // pilnuje swojego sektora i tylko biegnie do piłki gdy blisko
+            let zoneX = {
+                'DEF': (team[0].color === 'red') ? 100 : canvas.width - 100,
+                'MID': (team[0].color === 'red') ? 300 : canvas.width - 300,
+                'ATT': (team[0].color === 'red') ? 500 : canvas.width - 500
+            }[player.role];
+
+            let targetX = zoneX;
+            let targetY = player.y;
+
+            // jeśli piłka w zasięgu 50 px
+            if (distance(player, ball) < 50) {
+                targetX = ball.x;
+                targetY = ball.y;
             }
+
+            let dx = targetX - player.x;
+            let dy = targetY - player.y;
+            let dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+            let speed = 1.5;
+
+            player.x += (dx / dist) * speed;
+            player.y += (dy / dist) * speed;
         }
     });
 }
@@ -200,9 +173,24 @@ function updateBall() {
     if (!ball.owner) {
         ball.x += ball.vx;
         ball.y += ball.vy;
-        ball.vx *= 0.96;
-        ball.vy *= 0.96;
+        ball.vx *= 0.98;
+        ball.vy *= 0.98;
 
+        if (Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) < 0.1) {
+            ball.vx = 0;
+            ball.vy = 0;
+        }
+
+        // sprawdź przejęcie piłki
+        [redTeam, blueTeam].flat().forEach(player => {
+            if (distance(player, ball) < 10 && !ball.owner) {
+                ball.owner = player;
+                ball.vx = 0;
+                ball.vy = 0;
+            }
+        });
+
+        // ograniczenia boiska
         if (ball.x < ball.radius) ball.x = ball.radius;
         if (ball.x > canvas.width - ball.radius) ball.x = canvas.width - ball.radius;
         if (ball.y < ball.radius) ball.y = ball.radius;
@@ -231,9 +219,8 @@ function checkGoal() {
 
 function gameLoop() {
     if (gameStarted) {
-        updatePlayerAI(redTeam, blueTeam, canvas.width);
-        updatePlayerAI(blueTeam, redTeam, 0);
-        avoidOverlap(redTeam.concat(blueTeam));
+        updatePlayerAI(redTeam, canvas.width);
+        updatePlayerAI(blueTeam, 0);
         updateBall();
     }
 
