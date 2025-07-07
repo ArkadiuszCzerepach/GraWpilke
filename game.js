@@ -10,47 +10,63 @@ const ball = {
     y: canvas.height / 2,
     vx: 0,
     vy: 0,
-    radius: 6
+    radius: 6,
+    owner: null // zawodnik który ma piłkę
 };
 
+let score = { red: 0, blue: 0 };
+let startingTeam = Math.random() < 0.5 ? 'red' : 'blue';
+let gameStarted = false;
+
 function createTeams() {
-    // Czerwona drużyna: 4-4-2
-    redTeam.push({ x: 50, y: canvas.height / 2, color: 'red', number: 1, role: 'GK' }); // bramkarz
+    redTeam = [];
+    blueTeam = [];
 
-    let defendersY = [100, 200, 300, 400];
-    for (let i = 0; i < 4; i++) {
-        redTeam.push({ x: 150, y: defendersY[i], color: 'red', number: i + 2, role: 'DEF' });
-    }
+    redTeam.push({ x: 50, y: canvas.height / 2, color: 'red', number: 1, role: 'GK' });
+    let redDefY = [100, 200, 300, 400];
+    for (let i = 0; i < 4; i++)
+        redTeam.push({ x: 150, y: redDefY[i], color: 'red', number: i + 2, role: 'DEF' });
 
-    let midfieldersY = [80, 180, 320, 420];
-    for (let i = 0; i < 4; i++) {
-        redTeam.push({ x: 300, y: midfieldersY[i], color: 'red', number: i + 6, role: 'MID' });
-    }
+    let redMidY = [80, 180, 320, 420];
+    for (let i = 0; i < 4; i++)
+        redTeam.push({ x: 300, y: redMidY[i], color: 'red', number: i + 6, role: 'MID' });
 
     redTeam.push({ x: 450, y: 180, color: 'red', number: 10, role: 'ATT' });
     redTeam.push({ x: 450, y: 320, color: 'red', number: 11, role: 'ATT' });
 
-    // Niebieska drużyna: 4-3-3
     blueTeam.push({ x: canvas.width - 50, y: canvas.height / 2, color: 'blue', number: 1, role: 'GK' });
-
     let blueDefY = [100, 200, 300, 400];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 4; i++)
         blueTeam.push({ x: canvas.width - 150, y: blueDefY[i], color: 'blue', number: i + 2, role: 'DEF' });
-    }
 
     let blueMidY = [130, 250, 370];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3; i++)
         blueTeam.push({ x: canvas.width - 300, y: blueMidY[i], color: 'blue', number: i + 6, role: 'MID' });
-    }
 
     blueTeam.push({ x: canvas.width - 450, y: 100, color: 'blue', number: 9, role: 'ATT' });
     blueTeam.push({ x: canvas.width - 450, y: 250, color: 'blue', number: 10, role: 'ATT' });
     blueTeam.push({ x: canvas.width - 450, y: 400, color: 'blue', number: 11, role: 'ATT' });
 }
 
+function startGame() {
+    createTeams();
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.owner = null;
+
+    // zawodnik rozpoczynający
+    if (startingTeam === 'red') {
+        ball.owner = redTeam.find(p => p.role === 'MID');
+    } else {
+        ball.owner = blueTeam.find(p => p.role === 'MID');
+    }
+    gameStarted = true;
+}
+
 function drawField() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     ctx.fillStyle = '#27ae60';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -73,7 +89,6 @@ function drawField() {
 
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 4;
-
     ctx.beginPath();
     ctx.moveTo(0, canvas.height / 2 - 50);
     ctx.lineTo(0, canvas.height / 2 + 50);
@@ -93,7 +108,6 @@ function drawPlayers(team) {
         ctx.fill();
         ctx.strokeStyle = '#000';
         ctx.stroke();
-
         ctx.fillStyle = '#fff';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
@@ -111,80 +125,110 @@ function drawBall() {
     ctx.stroke();
 }
 
-function updateBall() {
-    ball.x += ball.vx;
-    ball.y += ball.vy;
-
-    // opór powietrza
-    ball.vx *= 0.98;
-    ball.vy *= 0.98;
-
-    // ograniczenia boiska
-    if (ball.x < ball.radius) { ball.x = ball.radius; ball.vx *= -0.5; }
-    if (ball.x > canvas.width - ball.radius) { ball.x = canvas.width - ball.radius; ball.vx *= -0.5; }
-    if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy *= -0.5; }
-    if (ball.y > canvas.height - ball.radius) { ball.y = canvas.height - ball.radius; ball.vy *= -0.5; }
+function drawScore() {
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Arial';
+    ctx.fillText(`Red ${score.red} - ${score.blue} Blue`, canvas.width / 2, 30);
 }
 
-function updatePlayerAI(team, opponentGoalX) {
+function distance(a, b) {
+    return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+function updatePlayerAI(team, opponentTeam, opponentGoalX) {
     team.forEach(player => {
-        let dx = ball.x - player.x;
-        let dy = ball.y - player.y;
-        let distance = Math.sqrt(dx * dx + dy * dy);
+        if (ball.owner === player) {
+            let nearestMate = team
+                .filter(p => p !== player)
+                .sort((a, b) => distance(a, ball) - distance(b, ball))[0];
 
-        let speed = 1.5;
-
-        // role ograniczają ruch
-        if (player.role === 'GK') {
-            // bramkarz porusza się tylko w swojej strefie bramkowej
-            if (Math.abs(player.x - (opponentGoalX < canvas.width/2 ? 50 : canvas.width - 50)) < 100) {
-                player.x += (dx / distance) * 0.5;
-                player.y += (dy / distance) * 0.5;
-            }
-        } else if (player.role === 'DEF') {
-            // obrońcy nie wychodzą ze swojej połowy
-            if ((opponentGoalX < canvas.width/2 && player.x < canvas.width / 2) ||
-                (opponentGoalX > canvas.width/2 && player.x > canvas.width / 2)) {
-                player.x += (dx / distance) * speed;
-                player.y += (dy / distance) * speed;
-            }
-        } else if (player.role === 'ATT') {
-            // napastnicy trzymają się raczej ataku
-            if ((opponentGoalX < canvas.width/2 && player.x > canvas.width / 4) ||
-                (opponentGoalX > canvas.width/2 && player.x < canvas.width * 3/4)) {
-                player.x += (dx / distance) * speed;
-                player.y += (dy / distance) * speed;
+            // jeśli jest blisko bramki - strzela
+            if ((opponentGoalX < canvas.width / 2 && ball.x < 200) ||
+                (opponentGoalX > canvas.width / 2 && ball.x > canvas.width - 200)) {
+                let tx = opponentGoalX - ball.x;
+                let ty = (canvas.height / 2) - ball.y;
+                let tDist = Math.sqrt(tx * tx + ty * ty);
+                ball.vx = (tx / tDist) * 4;
+                ball.vy = (ty / tDist) * 4;
+                ball.owner = null;
+            } else {
+                // podaje do najbliższego
+                let dx = nearestMate.x - ball.x;
+                let dy = nearestMate.y - ball.y;
+                let d = Math.sqrt(dx * dx + dy * dy);
+                ball.vx = (dx / d) * 2;
+                ball.vy = (dy / d) * 2;
+                ball.owner = null;
             }
         } else {
-            // pomocnicy biegają wszędzie
-            player.x += (dx / distance) * speed;
-            player.y += (dy / distance) * speed;
-        }
-
-        // jeśli dotknie piłki, kopie w stronę bramki przeciwnika
-        if (distance < 14) {
-            let tx = opponentGoalX - ball.x;
-            let ty = (canvas.height / 2) - ball.y;
-            let tDist = Math.sqrt(tx * tx + ty * ty);
-            ball.vx += (tx / tDist) * 3;
-            ball.vy += (ty / tDist) * 3;
+            // biegnie do piłki jeśli w pobliżu
+            let d = distance(player, ball);
+            if (d < 20 && ball.owner !== player) {
+                ball.owner = player;
+                ball.vx = 0;
+                ball.vy = 0;
+            } else {
+                let target = ball.owner ? ball.owner : ball;
+                let dx = target.x - player.x;
+                let dy = target.y - player.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                let speed = (player.role === 'GK') ? 1 : 1.5;
+                player.x += (dx / dist) * speed;
+                player.y += (dy / dist) * speed;
+            }
         }
     });
 }
 
+function updateBall() {
+    if (!ball.owner) {
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+        ball.vx *= 0.98;
+        ball.vy *= 0.98;
+
+        // ograniczenia
+        if (ball.x < ball.radius) ball.x = ball.radius;
+        if (ball.x > canvas.width - ball.radius) ball.x = canvas.width - ball.radius;
+        if (ball.y < ball.radius) ball.y = ball.radius;
+        if (ball.y > canvas.height - ball.radius) ball.y = canvas.height - ball.radius;
+    } else {
+        ball.x = ball.owner.x;
+        ball.y = ball.owner.y;
+    }
+
+    checkGoal();
+}
+
+function checkGoal() {
+    if (ball.y > canvas.height / 2 - 50 && ball.y < canvas.height / 2 + 50) {
+        if (ball.x < 2) {
+            score.blue++;
+            startingTeam = 'red';
+            startGame();
+        } else if (ball.x > canvas.width - 2) {
+            score.red++;
+            startingTeam = 'blue';
+            startGame();
+        }
+    }
+}
+
 function gameLoop() {
-    updateBall();
-    updatePlayerAI(redTeam, canvas.width);
-    updatePlayerAI(blueTeam, 0);
+    if (gameStarted) {
+        updatePlayerAI(redTeam, blueTeam, canvas.width);
+        updatePlayerAI(blueTeam, redTeam, 0);
+        updateBall();
+    }
 
     drawField();
     drawPlayers(redTeam);
     drawPlayers(blueTeam);
     drawBall();
+    drawScore();
 
     requestAnimationFrame(gameLoop);
 }
 
-createTeams();
+startGame();
 gameLoop();
-
